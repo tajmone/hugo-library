@@ -1,0 +1,84 @@
+!\---------------------------------------------------------------------------
+
+        HUGO v2.5 SHELL
+        by Kent Tessman (c) 1995-1998
+
+---------------------------------------------------------------------------\!
+
+! Uncomment the following to use a precompiled version of the Hugo Library:
+! #set PRECOMPILED_LIBRARY
+
+! Uncomment the following to include the HugoFix Debugging Library:
+! #set DEBUG
+
+! Uncomment the following to include verb stub routines:
+! #set VERBSTUBS
+
+#ifset DEBUG
+#switches -d
+#endif
+
+#include "verblib.g"                    ! grammar must come first
+
+#ifset PRECOMPILED_LIBRARY
+#link "hugolib.hlb"
+#else
+#include "hugolib.h"
+#endif
+
+routine init
+{
+        counter = -1
+
+        STATUSTYPE = 1                  ! score/turns
+        TEXTCOLOR = DEF_FOREGROUND
+        BGCOLOR = DEF_BACKGROUND
+        SL_TEXTCOLOR = DEF_SL_FOREGROUND
+        SL_BGCOLOR = DEF_SL_BACKGROUND
+
+        prompt = ">"
+        color TEXTCOLOR, BGCOLOR
+
+        cls
+        Font(BOLD_ON | DEFAULT_FONT)
+        "SHELL"
+        Font(BOLD_OFF)
+        "An Interactive Starting Point\n"
+        print BANNER
+
+        player = you                    ! player initialization
+        location = emptyroom
+        old_location = location
+
+        move player to location
+        FindLight(location)
+        DescribePlace(location)
+        location is visited
+        CalculateHolding(player)
+
+#ifset USE_PLURAL_OBJECTS
+        InitPluralObjects
+#endif
+}
+
+#ifset PRECOMPILED_LIBRARY
+replace main
+{
+#else
+routine main
+{
+#endif
+        counter = counter + 1
+        PrintStatusLine
+        run location.each_turn
+        runevents
+        RunScripts
+        if parent(speaking)~=location
+                speaking = 0
+}
+
+player_character you "you"
+{}
+
+room emptyroom "empty room"
+{}

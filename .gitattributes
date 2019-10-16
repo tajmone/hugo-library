@@ -1,0 +1,14 @@
+#############################################
+#  The Hugo Interactive Fiction Library:    #
+#  https://github.com/tajmone/hugo-library  #
+#############################################
+
+* text=auto
+
+*.h   text
+*.g   text
+
+.editorconfig  text eol=lf
+.gitattributes text eol=lf
+
+# EOF #

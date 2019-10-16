@@ -1,0 +1,1775 @@
+!\---------------------------------------------------------------------------
+
+        THE VAULT OF HUGO
+        Hugo v2.5 Tutorial Game
+
+        by Kent Tessman (c) 1995-1999
+
+---------------------------------------------------------------------------\!
+
+#version 2.5
+
+#set DEBUG                              ! include HugoFix library and grammar
+#set VERBSTUBS                          ! include verb stub routines
+
+#set USE_VEHICLES                       ! from OBJLIB.H
+#set USE_PLURAL_OBJECTS                 !
+#set USE_ATTACHABLES                    !
+
+#set NO_AUX_MATH                        ! don't need advanced math routines
+
+#switches -ls                           ! print statistics to SAMPLE.LST
+#ifset DEBUG
+#switches -d
+#endif
+
+
+! The following limit setting reserves 512 extra bytes of dictionary space
+! so that the play can name the unnamed object.  A maximum 512 bytes are
+! required because the game needs to write the name, adjective, and misc
+! properties of the object.
+
+$MAXDICTEXTEND = 512
+
+
+!----------------------------------------------------------------------------
+! NEW GRAMMAR:
+
+verb "kick", "punt", "boot"
+        *                                               DoVague
+        * object                                        DoPunt
+
+verb "board"
+        * (minecar)                                     DoEnter
+
+verb "roll", "drive", "steer", "ride"
+        *                                               DoVague
+        * object                                        DoMoveinVehicle
+        * "to" object                                   DoMoveinVehicle
+
+! In the grammar definitions below, STRING refers to any section of the
+! player's input enclosed in quotation marks.
+
+verb "write", "scribble", "scrawl", "print"
+        *                                               DoVague
+        * "on" object                                   DoWriteOn
+        * "on" object "with" held                       DoWriteOn
+        * string                                        DoWrite
+        * string "on" object                            DoWrite
+        * string "on" object "with" held                DoWrite
+        * string "with" held                            DoWrite
+
+verb "name", "call", "christen"
+        *                                               DoVague
+        * (unnamedobject)                               DoNameWhat
+        * (unnamedobject) string                        DoName
+
+verb "stick"
+        *                                               DoVague
+        * (dart)                                        DoAttachObject
+        * (dart) "in"/"on" (dartboard)                  DoAttachObject
+
+
+#include "verblib.g"                    ! normal verb grammar
+
+!----------------------------------------------------------------------------
+
+#ifset PRECOMPILED_LIBRARY
+#link "hugolib.hlb"
+#else
+#include "hugolib.h"                    ! standard library routines
+#endif
+
+! Normally, the library's PrintScore routine uses a MAX_SCORE/score
+! formula to determine a ranking (if rankings are provided); the following
+! global is used in the replaced PrintScore routine to ensure that rank is
+! set by the game, not approximated by the library.
+
+global rank
+
+routine init
+{
+        MAX_SCORE = 50
+        ranking[0] = "Amateur Adventurer"
+        ranking[1] = "Competent Door-Unlocker"
+        ranking[2] = "Bomb-Meddling Adventurer"
+        ranking[3] = "Master Magic Wand Finder"
+        ranking[4] = "The Genuine Article Sample Game Solver"
+        MAX_RANK = 4
+
+        counter = -1                    ! 1 turn before turn 0
+
+        STATUSTYPE = 1                  ! score/turns
+        TEXTCOLOR = DEF_FOREGROUND
+        BGCOLOR = DEF_BACKGROUND
+        SL_TEXTCOLOR = DEF_SL_FOREGROUND
+        SL_BGCOLOR = DEF_SL_BACKGROUND
+
+        prompt = ">"
+        color TEXTCOLOR, BGCOLOR
+
+        DEFAULT_FONT = PROP_ON
+        Font(DEFAULT_FONT)
+
+        cls
+        "You brace yourself, check your flashlight, and, with \
+        source code in hand, prepare to enter...\n"
+
+        Font(BOLD_ON)
+        "THE VAULT OF HUGO"
+        Font(BOLD_OFF)
+        "An Interactive Example"
+        print BANNER
+
+        player = you
+        location = outsidevault
+        old_location = location
+
+        move player to location         ! initialize player location
+        FindLight(location)             ! whether the player can see
+        DescribePlace(location)         ! the appropriate description
+        location is visited
+        CalculateHolding(player)        ! total size of player contents
+
+        Acquire(player, flashlight)     ! give the player the flashlight
+        flashlight is known
+
+        Activate(key_daemon)            ! set up initial daemons
+
+        InitPluralObjects
+}
+
+#ifset PRECOMPILED_LIBRARY
+replace main
+{
+#else
+routine main
+{
+#endif
+        counter = counter + 1
+        PrintStatusLine
+        run location.each_turn
+        runevents
+        RunScripts
+        if speaking not in location     ! in case the character being spoken
+                speaking = 0            ! to leaves
+}
+
+player_character you "you"
+{}
+
+
+! flashlight
+!
+! The flashlight is an example of a light source.  The rules for
+! the FindLight routine in HUGOLIB.H check to see if any light sources
+! are available (starting with the room itself, then working through
+! the visible contents) before deciding if the player is able to see
+! in any given location.
+
+object flashlight "flashlight"
+{
+        in you
+        nouns "flashlight", "light", "torch", "lamp"
+        adjective "flash"
+        article "your"
+        short_desc
+        {
+                CArt(self)
+                " is here, ";
+                if self is switchedon
+                        "glowing brightly."
+                else
+                        "turned off."
+        }
+        long_desc
+        {
+                "It's one of those disposable kinds.  Built-in battery.  \
+                $3.99 at the corner store.  That sort of thing.  At the
+                moment, it is ";
+                if self is switchedon
+                        "on."
+                else
+                        "off."
+        }
+        before
+        {
+                ! The before property routine attempts to match the verb
+                ! routine based on a given specifier.  In the case below,
+                ! if the verbroutine global is set to DoBurn (technically
+                ! &DoBurn, the address of the DoBurn routine) and the
+                ! object global is set to the flashlight object, the
+                ! following routine is run before (in place of) the DoBurn
+                ! routine.
+
+                object DoBurn
+                        {Perform(&DoSwitchOn, self)}
+        }
+        after
+        {
+                ! The two routines below are similar to the before routine
+                ! above, except that they are run after the verb routine.
+
+                object DoSwitchOn
+                {
+                        "A beam of serviceable light appears from your
+                        flashlight."
+                        self is light
+                        FindLight(location)
+                        if location is not visited
+                                {DescribePlace(location)
+                                location is visited}
+                }
+                object DoSwitchOff
+                {
+                        "Your flashlight goes dark.  ";
+                        self is not light
+                        if FindLight(location)
+                                print newline
+                        else
+                                "And so does everything else."
+                }
+        }
+        is switchable
+}
+
+!----------------------------------------------------------------------------
+! OUTSIDE THE VAULT
+!----------------------------------------------------------------------------
+room outsidevault "outside a vault"
+{
+        long_desc
+                {"Kind of that 1930s, Bela Lugosi, graveyardy motif at
+                work here.  It's a pretty creepy place.  Directly in
+                front of you is the giant door to an even more giant
+                vault.  Above the door hangs a rusty sign."}
+        e_to {return vaultdoor.door_to}
+        in_to {return vaultdoor.door_to}
+        cant_go
+                {"Vines, thorns, and bent, twisted trees bar travel in any
+                direction away from the vault."}
+        before
+        {
+                location DoDig
+                {
+                        if object ~= bump
+                                "You can't dig in that."
+                        else
+                                Perform(&DoSearch, bump)
+                }
+        }
+}
+
+
+! key_daemon
+!
+! This basic daemon is simply a trigger that checks every turn to see
+! if 10 turns have passed.  If so, it prints a brief section of prose
+! before deactivating itself.  (It is also deactivated if the player
+! pre-emptively searches the bump in the ground.)
+
+daemon key_daemon
+{}
+
+event key_daemon
+{
+        if counter = 10
+        {
+                "\nAll this shuffling around outside the door has uncovered
+                a little bump in the ground."
+
+                event_flag = true
+                Deactivate(key_daemon)
+        }
+}
+
+scenery bump "little bump"
+{
+        in outsidevault
+        nouns "bump", "ground"
+        adjective "little"
+        article "a"
+        long_desc
+        {
+                if key is not moved
+                        {"It looks like there might be something there."
+                        bump is moved}
+                else
+                        {"You've already got the key.  What more do
+                        you want?"}
+        }
+        before
+        {
+                ! More than one verb routine may be given as a potential
+                ! match to a specifier in a before or after routine, as in:
+
+                object DoSearch, DoDig
+                {
+                        if key is moved
+                                "You already did.  There's nothing else
+                                to find."
+                        else
+                        {
+                                bump is moved
+                                "You find a rusty iron key!\n(Taken.)"
+                                Acquire(player, key)
+                                score = score + 10
+                                Deactivate(key_daemon)
+                        }
+                }
+        }
+}
+
+object key "rusty iron key"
+{
+        noun "key"
+        adjectives "rusty", "iron"
+        article "a"
+        size 20
+        long_desc
+                {"A skeleton key.  Rusty.  Iron.  And heavy, too.  A perfect
+                match for the vault door, no?"}
+        before
+        {
+                xobject DoUnlock
+                {
+                        if object = oakdoor
+                                "The rusty key doesn't work on this door."
+                        else
+                                return false    ! library continues as usual
+                }
+        }
+}
+
+scenery sign "rusty sign"
+{
+        in outsidevault
+        noun "sign"
+        article "a"
+        adjective "rusty"
+        long_desc {"\"Here lies Hugo.\""}
+        is readable
+}
+
+
+! vaultdoor
+!
+! Notice that the found_in property specifies the rooms on either side
+! of the door; OBJLIB.H does the rest.  The vault door's special attribute
+! is set once the player scores points for opening it.
+
+door vaultdoor "vault door"
+{
+        nouns "door", "doorway"
+        adjective "vault", "giant"
+        article "the"
+        between outsidevault, insidevault
+        key_object key
+        after
+        {
+                object DoUnlock
+                {
+                        if self is not special
+                        {
+                                self is special
+                                score = score + 10
+                                rank = 1
+                        }
+                        return false    ! library continues as usual
+                }
+        }
+        is not open, lockable, locked
+}
+
+scenery vault "vault"
+{
+        in outsidevault
+        noun "vault"
+        article "the"
+        long_desc {"Big, imposing, and complete with rusty sign."}
+        door_to                         ! so a player can "go vault"
+                {return vaultdoor.door_to}
+        before
+        {
+                object DoEnter
+                {
+                        object = vaultdoor      ! change object before letting
+                        return false            ! library continue normally
+                }
+        }
+}
+
+!----------------------------------------------------------------------------
+! INSIDE THE VAULT
+!----------------------------------------------------------------------------
+room insidevault "inside the vault"
+{
+        long_desc
+        {
+                "Standing in the middle of this dimly lit chamber, you
+                realize that just maybe you should've splurged on a
+                more expensive flashlight.  You also realize that there
+                are four ways you can go:  a marble archway to the north,
+                a muddy cave opening to the east, ";
+                if oakdoor is not blown_open
+                        "an oak door set in a brick frame";
+                else
+                        "an empty brick frame where the oak door used to be";
+                " to the southeast, and west back outside where you came
+                from."
+        }
+        w_to {return vaultdoor.door_to}
+        out_to {return vaultdoor.door_to}
+        se_to {return oakdoor.door_to}
+        n_to objectroom
+        e_to characterroom
+        in_to {"You'll have to be a little more specific about which way
+                you want to go."}
+        is not light
+        after
+        {
+                location DoGo
+
+                        ! changes the way the vault is refered to from
+                        ! "a vault" to "the vault"--a stylistic thing
+
+                {
+                        outsidevault.name = "outside the vault"
+                        return false
+                }
+        }
+        vehicle_path minecar    ! i.e. the mine car can travel here
+}
+
+
+! minecar
+!
+! This is an excellent example of a basic vehicle from OBJLIB.H.  The
+! vehicle_verbs property must mirror the valid words provided in the
+! verb grammar at the start of this file.  The vehicle_move property is
+! checked before the vehicle is allowed to move.  (This is where, for
+! example, a car object would be checked to make sure that the ignition
+! is turned on, or the tires aren't flat, etc.)  Any room in which travel
+! in the mine car is permitted must have minecar in its vehicle_path
+! property.
+
+vehicle minecar "mine car"
+{
+        in insidevault
+        nouns "car", "cart"
+        adjectives "mine", "my", "old"  ! because:  synonym "mine" for "my"
+                                        ! in HUGOLIB.H
+        article "a"
+        vehicle_verbs "roll", "drive", "steer", "ride"
+        vehicle_move
+        {
+                ! Here, the mine car will not roll until the big rock is
+                ! removed from under it.  Note that the rock is not actually
+                ! under the car, but looking under the car moves it from
+                ! the nothing object to the room object.
+
+                if bigrock in nothing
+                        {"Something seems to be stopping the mine car
+                        from rolling."
+                        return false}
+        }
+        initial_desc
+                {"An old mine car sits abandoned to one side."}
+        long_desc
+                {"It was probably used to haul rocks during the
+                excavation of the original Hugo.  You could probably
+                get in it."}
+        contains_desc
+                {"The old mine car is loaded with";}
+        before
+        {
+                object DoClimb
+                        {Perform(&DoEnter, self)}
+                object DoLookUnder
+                {
+                        ! The big rock initially begins the game in nothing;
+                        ! looking under the mine car moves it inside the
+                        ! vault.
+
+                        if bigrock not in nothing
+                                "You don't find anything else."
+                        else
+                        {
+                                "You find a big rock lodged between the
+                                wheels, which you manage to wrestle out of
+                                the way."
+                                move bigrock to insidevault
+                        }
+                }
+        }
+        after
+        {
+                object DoEnter
+                {
+                        pencil is known
+                        return false
+                }
+        }
+        capacity 100
+        holding 0
+        reach minecar                   ! can't reach things outside the car
+        is container, open, static
+
+        ! Because the mine car has the quiet attribute set, its contents
+        ! (i.e. the pencil) are not immediately obvious--they are not
+        ! listed by WhatsIn until the player specifically looks inside.
+
+        is quiet
+
+        ! Also, it is mobile and therefore may be pulled by the rope.
+
+        is mobile
+        attach_immobile                 ! returns false if the car is mobile
+        {
+                if bigrock in nothing
+                        "Something seems to be stopping the mine car
+                        from rolling."
+                else:  return false
+        }
+}
+
+object bigrock "big rock"
+{
+        nouns "rock", "stone"
+        adjectives "big", "large", "huge"
+        article "a"
+        after
+        {
+                object DoGet
+                        {"Oof.  It's a struggle, but you manage to
+                        pick it up."}
+        }
+        size 50
+}
+
+!----------------------------------------------------------------------------
+! THE OBJECT ROOM
+!----------------------------------------------------------------------------
+room objectroom "Object Room"
+{
+        article "the"
+        prep "in"
+        s_to insidevault
+        out_to insidevault
+        long_desc
+        {
+                "This room contains a collection of objects with different
+                properties, attributes, and associated routines in order
+                to give some idea of basic object design.  In addition to
+                the various furnishings, you notice a dartboard hanging on
+                one wall."
+        }
+        vehicle_path minecar
+        is not light
+}
+
+! chair
+!
+! Try sitting in it.
+
+object chair "wooden chair"
+{
+        in objectroom
+        noun "chair"
+        adjective "wooden"
+        article "a"
+        reach cardtable         ! i.e. only the chair and the card table
+                                ! may be reached from the chair
+        is enterable, static
+}
+
+
+! cardtable
+!
+! Try sitting on it.  (You can't--it's not enterable.)  But it can hold
+! things on its surface.
+
+object cardtable "card table"
+{
+        in objectroom
+        nouns "table", "cardtable"
+        adjective "card"
+        article "a"
+        capacity 50
+        holding 0
+        is platform, static
+}
+
+
+! deckofcards and playingcard
+!
+! A rather unimpressive example of how to extract a single object from
+! a group of similar objects.  Pick a card, any card.
+
+object deckofcards "playing cards"
+{
+        in cardtable
+        noun "cards"
+        adjective "deck", "playing"
+        article "some"
+        initial_desc
+                {"A deck of playing cards has been placed appropriately
+                on the table."}
+        size 10
+        is plural
+}
+
+object card "playing card"
+{
+        found_in deckofcards
+        noun "card" , "diamonds"
+        adjective "playing", "nine"
+        article "a"
+        size 5
+        long_desc {"It's the nine of diamonds."}
+        after
+        {
+                object DoGet
+                {
+                        if object.found_in ~= false
+                        {
+                                object.found_in = false
+                                "You deal the nine of diamonds."
+                                object.name = "nine of diamonds"
+                                object.article = "the"
+                        }
+                        else
+                                return false
+                }
+        }
+}
+
+
+! goldcoins
+!
+! A simple demonstration of identical_class from OBJLIB.H.  The coins can
+! be referred to individually, by number (i.e. "two coins"), or as a
+! group ("the coins").
+
+identical_class goldcoins "shiny gold coins"
+{
+        article "some"
+        nouns "coins"
+        adjectives "shiny", "gold"
+        single_noun "coin"
+        long_desc
+                "Shiny and gold:  both admirable qualities in a coin."
+        plural_of coin1, coin2, coin3
+}
+
+object coin1 "shiny gold coin"
+{
+        in cardtable
+        article "a"
+        noun "coin"
+        adjectives "shiny", "gold"
+        identical_to goldcoins
+}
+
+coin1 coin2 "shiny gold coin"           ! copy coin1 to coin2
+{
+        in cardtable
+}
+
+coin1 coin3 "shiny gold coin"
+{
+        in cardtable
+}
+
+
+! mittens
+!
+! Try wearing them.  Try writing when you're wearing them.
+
+object mittens "pair of mittens"
+{
+        in transparentbox
+        nouns "mitten", "mittens"
+        adjective "pair"
+        article "a"
+        size 10
+        initial_desc
+                {"A pair of mittens is inside the transparent box."}
+        is clothing
+}
+
+
+! box
+!
+! The basic box class is used by transparentbox and opaquebox.  The boxes
+! plural_class (from OBJLIB.H) exists only to allow the boxes to be referred
+! to as a group.
+
+plural_class boxes "boxes"
+{
+        article "some"
+        noun "boxes"
+        single_noun "box"
+        plural_of transparentbox, opaquebox
+}
+
+class box "box"
+{
+        noun "box"
+        article "a"
+        size 20
+        capacity 20
+        holding 0
+        long_desc
+        {
+                if self is open
+                        "It's open."
+                else
+                        "It's closed."
+        }
+        after
+        {
+                ! This after routine replaces the normal library "Taken."
+                ! response whenever a box object is the parent of the
+                ! taken object.
+
+                parent(object) DoGet
+                {
+                        print "You take "; The(object); " out of "; \
+                        The(self); "."
+                }
+        }
+        plural_is boxes
+        is openable, not open, container
+}
+
+
+! transparentbox
+!
+! Try getting something out of it when it's closed, even if you can see
+! the contents.  Then try putting the flashlight in here and closing it.
+
+box transparentbox "transparent box"
+{
+        in objectroom
+        adjective "transparent", "clear"
+        is transparent
+}
+
+
+! opaquebox
+!
+! Now try putting the flashlight in here and closing it.  The library does
+! all the work of checking to see if the DoClose verb routine hides the
+! light source in the room.
+
+box opaquebox "opaque box"
+{
+        in objectroom
+        adjective "opaque"
+        article "an"
+}
+
+box largedrum "large drum"
+! the special attribute is set once it has been opened
+{
+        in objectroom
+        nouns "drum", "can", "barrel"
+        adjectives "large", "big", "larger"
+        short_desc
+        {
+                "A large drum--not the musical kind--is here.  ";
+                if warningnote is hidden
+                {
+                        "Attached to it is a warning note."
+                        warningnote is known
+                        warningnote is already_listed
+                }
+                print newline
+        }
+        long_desc
+                {"It's one of those big barrels used for storing and shipping
+                oil, chemicals, and other hazardous materials.  Hint."}
+        before
+        {
+                object DoGet
+                        {"It's much too heavy to take."}
+        }
+        after
+        {
+                object DoOpen
+                {
+                        ! if drum hasn't been opened the first time
+                        if self is not special
+                        {
+                                "Ignoring all warnings to the contrary, you
+                                open the drum.  Inside is another, smaller
+                                drum, as well as a second warning note."
+                                self is special
+                                smalldrum is known
+                                warningnote.name = "first warning note"
+                        }
+                        else
+                                return false
+                }
+        }
+}
+
+plural_class notes "notes"
+{
+        nouns "notes", "paper"
+        adjectives "warning", "pieces"
+        single_noun "note"
+        plural_of warningnote, secondnote
+}
+
+object warningnote "warning note"
+{
+        in objectroom
+        nouns "note", "paper"
+        adjectives "warning", "first", "piece"
+        article "a"
+        long_desc
+                {"\"Do not open this drum.  Whatever you do, don't open
+                this drum.  Do not.  Open.  This drum.\""}
+        before
+        {
+                object DoGet
+                        {self is not hidden
+                        return false}
+        }
+        plural_is notes
+        is readable, hidden
+}
+
+box smalldrum "smaller drum"
+! the special attribute is set once the bomb has been found
+{
+        in largedrum
+        nouns "drum", "can", "barrel"
+        adjectives "small", "smaller", "little"
+        long_desc
+        {
+                "It's a smaller version of the first drum";
+                if secondnote is hidden
+                {
+                        " (with a second warning note attached, of course)";
+                        secondnote is known
+                        secondnote is already_listed
+                }
+                print "."
+        }
+        before
+        {
+                object DoGet
+                        {"Small is a relative term here.  It's still too
+                        big to pick up."}
+        }
+        after
+        {
+                object DoOpen
+                {
+                        if self is not special   ! if bomb hasn't been found
+                        {
+                                "You find a bomb.  What luck."
+                                self is special
+                                bomb is known
+                                Activate(bomb_fuse, 10)
+                                score = score + 10
+                                rank = 2
+                        }
+                        else
+                                return false
+                }
+        }
+}
+
+object secondnote "second warning note"
+{
+        in largedrum
+        nouns "note", "paper"
+        adjectives "warning", "second", "piece"
+        article "a"
+        long_desc
+                {"\"You listen well.  But this time we mean it.  Don't open
+                this drum.\""}
+        before
+        {
+                object DoGet
+                {
+                        self is not hidden
+                        return false
+                }
+        }
+        plural_is notes
+        is readable, hidden
+}
+
+object bomb "bomb"
+{
+        in smalldrum
+        nouns "bomb"
+        article "a"
+        long_desc
+                {"Just your typical, garden-variety bomb."}
+}
+
+
+! bomb_fuse
+!
+! This fuse begins running as soon as the player opens the small drum.
+! It prints a message only when it is within earshot or view of the player,
+! but keeps ticking regardless.
+
+fuse bomb_fuse
+{}
+
+event bomb_fuse
+{
+        if bomb in player                       ! player is holding it
+                {"\nThe bomb you're holding is ticking."
+                event_flag = true}
+        elseif FindObject(bomb, location)       ! bomb is visible in the room
+                {"\nThe bomb is ticking."
+                event_flag = true}
+        elseif Contains(location, bomb)         ! bomb is otherwise in room
+                {"\nYou hear a ticking noise."
+                event_flag = true}
+
+        if not self.tick                        ! when self.timer = 0
+        {
+                if Contains(location, bomb)     ! if in player's location
+                {
+                        "\nKABOOM!\n\n\
+                        (Right next to the bomb was not, as they say, such
+                        a great place to be as it went off.  You're dead now.)"
+
+                        endflag = 2     ! when endflag is non-false, it
+                                        ! immediately triggers the end of the
+                                        ! game
+                }
+                else
+                {
+                        "\nYou hear a muffled kaboom."
+                        event_flag = true
+                        if bomb in insidevault
+                        {
+                                oakdoor is blown_open
+                                oakdoor is not openable
+                                oakdoor is not hidden
+                                score = score + 10
+
+                                ! The following activates the dwarf's
+                                ! script with eleven steps; the DwarfDropBall
+                                ! ensures that she drops whatever she was
+                                ! holding before going anywhere.
+
+                                setscript[script(dwarf,11)] = \
+                                        &CharMove, s_obj,
+                                        &CharMove, w_obj,
+                                        &CharWait, nothing,
+                                        &CharShakeHead, oakdoor,
+                                        &CharWait, nothing,
+                                        &CharMove, n_obj,
+                                        &CharWait, nothing,
+                                        &CharShakeHead, largedrum,
+                                        &CharMove, s_obj,
+                                        &CharMove, e_obj,
+                                        &CharMove, n_obj
+                                DwarfDropBall
+                        }
+                        remove bomb
+                        Deactivate(bomb_fuse)
+                }
+        }
+}
+
+
+attribute written alias special         ! for the pad only
+array writing[65]                       ! up to 64 characters of writing
+
+! pad
+!
+! Try:  write "something" on paper.
+
+object pad "pad of paper"
+{
+        in cardtable
+        article "a"
+        nouns "paper"
+        adjective "pad", "regular", "writing"
+        long_desc
+        {
+                "It's a regular pad of writing paper.  ";
+                if self is written
+                {
+                        "Written on it is:  \"";
+                        print StringPrint(writing); "\"."
+                }
+                else:  "It's blank."
+                print newline
+        }
+        is readable
+}
+
+object pencil "pencil"
+{
+        in minecar
+        article "a"
+        noun "pencil"
+        adjective "wooden"
+        long_desc
+                "Not just a wooden pencil, but a magical wooden pencil,
+                which one might use, perhaps, to name a hitherto unnamed
+                object."
+        size 5
+}
+
+
+! unnamedobject
+!
+! The unnamed object can be given a name by the player--i.e. have a word
+! written on it by which the object may be referred to--in order to
+! demonstrate the DICT command.
+
+object unnamedobject "unnamed object"
+! the special attribute is set once the player has given it a name
+{
+        in objectroom
+        article "an"
+        noun "object"
+        adjective "unnamed", "non-descript", "nondescript"
+        misc 0                          ! will eventually contain the non-
+                                        ! case-altered version of the name
+        initial_desc
+                "Lying in the corner of the room is a non-descript,
+                unnamed object."
+        short_desc
+                print "The "; self.name; " is here."
+        long_desc
+        {
+                "Nothing special about it.  You can't even tell what it
+                might be for.";
+                if self is special
+                        {"  Written on the side of it is:  \"";
+                        print object.misc; "\".";}
+                print newline
+        }
+        is openable, clothing, switchable
+}
+
+scenery dartboard "old dartboard"
+{
+        in objectroom
+        article "a"
+        noun "dartboard", "board"
+        adjective "old", "dart"
+        short_desc
+                "Hanging on one wall is an old dartboard."
+        is static
+}
+
+
+! dart
+!
+! The dart can be attached to the dartboard either by sticking it in or
+! throwing it.  Since the attach_take property is true, the dart is released
+! when attached and taken when detached.
+
+attachable dart "green dart"
+{
+        in objectroom
+        article "a"
+        noun "dart"
+        adjective "green"
+        size 5
+        attach_verb "stick", "throw"
+        detach_verb "get"
+        attach_prep "in"
+        attached_desc "sticking out of"
+        attach_take true
+        attach_drop true
+        attached_to dartboard           ! space for one attachment
+        attachable_to dartboard
+        before
+        {
+                object DoThrowAt
+                {
+                        if xobject is living
+                                "Trying to start something, are we?"
+                        else
+                                Perform(&DoAttachObject, object, xobject)
+                }
+        }
+}
+
+
+! rope
+!
+! The rope is another attachable--but unlike the dart, because attach_take
+! is not set to true, it may still be carried after being attached to another
+! object.  Since the minecar has the mobile attribute set, it may be pulled
+! around; the chair and cardtable, however, may not.
+
+attachable rope "heavy rope"
+{
+        in objectroom
+        article "a"
+        nouns "rope", "twine"
+        adjective "heavy", "thick"
+        attach_verbs "tie", "attach"
+        detach_verbs "untie", "detach"
+        attached_to chair, 0            ! space for two attachments
+        attachable_to chair, cardtable, minecar
+}
+
+
+!----------------------------------------------------------------------------
+! THE CHARACTER ROOM AND THE BALL ROOM
+!----------------------------------------------------------------------------
+room characterroom "Character Room"
+{
+        noun "room"
+        adjective "character"
+        article "the"
+        prep "in"
+        w_to insidevault
+        out_to insidevault
+        n_to ballroom
+        in_to ballroom
+        long_desc
+                {"The Character Room provides a couple of good examples of
+                character scripts and events.  Exits are north and west."}
+        vehicle_path minecar
+}
+
+
+! guard
+!
+! Ask him about things in the game.  Try:
+!
+!       ask guard about the minecar
+!       guard, tell me about the minecar
+!       guard, what about the minecar?
+!
+! Or, once you've begun talking to him, simply:
+!
+!       tell me about...
+!       what about...
+
+character guard "burly guard"
+{
+        in characterroom
+        noun "guard"
+        adjective "burly"
+        article "a"
+        long_desc
+                {"He's wearing a button that reads:  \"Just ask me.\""}
+        before
+        {
+                ! The guard is the object, since the question is asked as:
+                ! "ask <object> about <xobject>".
+
+                object DoAsk
+                {
+                        select xobject
+                        case minecar
+                                "\"You bring that in here, and you're asking
+                                for trouble.\""
+                        case ballroom
+                                "\"Don't let me catch you taking none of them
+                                there balls out of the Ball Room.\""
+                        case bomb
+                                "\"I don't know what kind of loopy nut
+                                would want to be carting a bomb in here.\""
+                        case dwarf
+                                {"\"She's a short little one.  Kinda strange,
+                                I have to say.  Spends all her time in there
+                                just a-kickin' away.  I think she's mad
+                                'cause she lost her magic wand.\""
+                                wand is known}
+                        case wand
+                                "\"Wish I had one.\""
+                        case oakdoor
+                                "\"I have no idea how to get that thing
+                                open.  The only way would be to blast it,
+                                if you had something to blast it with...\""
+                        case you
+                                "The guard doesn't think too much of you."
+                        case guard
+                                "I wouldn't pry if I were you."
+                        case else
+                                return false
+                }
+        }
+}
+
+
+! This object-linked event is checked only when the guard is in the player's
+! location.
+
+event guard
+{
+        if minecar in location
+        {
+                "\nThe guard lifts his big boot up to the mine car and gives
+                you a firm shove back out the door.  \"Not in that thing,
+                you don't, pal!\""
+                if player in minecar
+                {
+                        move minecar to insidevault
+                        location = insidevault
+                        PrintStatusLine
+                }
+                else
+                {MovePlayer(insidevault)
+                MoveAllAttachables(player, characterroom, insidevault, true)
+                }
+        }
+        if Contains(player, bomb)
+        {
+                "\nThe guard grabs you and throws you back out the door.  \
+                \"Get out of here with that bomb, pal!\"  An unsubtle
+                approach, yes, but one that works."
+                MovePlayer(insidevault)
+        }
+        if Contains(player, soccerball) or Contains(player, basketball)
+        {
+                "\nThe guard grabs you and throws you back out the door.  \
+                \"Read the sign, pal!  They call it the Ball Room for a
+                reason.  Keep 'em in there!\""
+                MovePlayer(ballroom)
+        }
+}
+
+room ballroom "Ball Room"
+{
+        noun "room", "ballroom"
+        adjective "ball"
+        article "the"
+        prep "in"
+        s_to characterroom
+        out_to characterroom
+}
+
+
+! This event runs whenever the player is in the ballroom.
+
+event ballroom                          ! the dwarf plays with the balls
+{
+        local a
+
+        if dwarf in ballroom
+        {
+                a = random(6)           ! 1 to 6
+                select a
+                        case 1
+                                DwarfGetBall(soccerball)
+                        case 2
+                                DwarfGetBall(basketball)
+                        case 3, 4
+                                DwarfDropBall
+                        case else
+                        {
+                                if child(dwarf)
+                                {
+                                        "\nThe dwarf winds up and gives the ";
+                                        print child(dwarf).name;
+                                        " a kick.  It ricochets off the wall
+                                        and bounces back to her."
+                                        event_flag = true
+                                }
+                        }
+        }
+}
+
+routine DwarfDropBall
+{
+        if child(dwarf)
+        {
+                "\nThe dwarf drops the ";
+                print child(dwarf).name; "."
+                move child(dwarf) to ballroom
+                event_flag = true
+        }
+}
+
+routine DwarfGetBall(obj)
+{
+        if obj in ballroom
+        {
+                DwarfDropBall
+                move obj to dwarf
+                "\nThe dwarf picks up the ";
+                print obj.name; "."
+                event_flag = true
+        }
+        else                            ! player must have ball obj
+        {
+                if obj = basketball     ! so try to choose the other ball
+                        obj = soccerball
+                else
+                        obj = basketball
+
+                if obj not in ballroom  ! player must have both balls
+                        "\nThe dwarf looks at you impatiently and more than
+                        a little accusingly, waiting for you to give her
+                        back her balls."
+        }
+}
+
+plural_class balls "balls"
+{
+        article "some"
+        noun "balls"
+        single_noun "ball"
+        plural_of soccerball, basketball
+}
+
+object soccerball "checkered soccer ball"
+{
+        type balls                      ! for identification as a ball
+        in ballroom
+        nouns "ball", "soccerball"
+        adjective "soccer", "checkered"
+        article "a"
+        before
+        {
+                object DoGet
+                {
+                        if self in dwarf        ! if she's holding it
+                                {"The dwarf shakes a fist at you and
+                                mutters, \"Get your own, kid.\""}
+                        else
+                                return false
+                }
+        }
+        plural_is balls
+}
+
+soccerball basketball "orange basketball"       ! copy the other ball object
+{
+        in ballroom
+        nouns "ball", "basketball"
+        adjective "basket", "orange"
+        article "an"
+}
+
+female_character dwarf "little dwarf"
+{
+        in ballroom
+        noun "dwarf"
+        adjective "little"
+        article "a"
+        order_response          ! i.e. "dwarf, (do something)", such as
+        {                       ! "dwarf, kick ball"
+
+                if verbroutine = &DoPunt
+                {
+                        if object.type ~= balls
+                                {"The dwarf looks at you like you're nuts."
+                                return true}
+                        if object in player
+                                {"(first giving the ball to her)"
+                                if child(dwarf)
+                                        move child(dwarf) to location
+                                move object to dwarf}
+
+                        if object not in dwarf
+                                {"The dwarf shrugs.  \"I would, but I don't
+                                have ";
+                                print The(object); ".\""}
+                        else
+                                {"The dwarf winds up and gives the ";
+                                print object.name;
+                                " a kick.  It ricochets off the wall and
+                                bounces back to her."}
+                }
+                else
+                        return false
+        }
+        after
+        {
+                object DoAsk
+                {
+                        if xobject = wand
+                                "\"I'd like to have it back.\""
+                        else
+                                return false
+                }
+                object DoTell
+                {
+                        if xobject = wand
+                                "\"I'd like to have it back.\""
+                        else
+                                return false
+                }
+
+                ! In this case, the dwarf is the xobject, since the command
+                ! is given as:  "show <object> to <xobject>".
+
+                xobject DoShow
+                {
+                        if object = wand
+                                "\"Give that to me!\""
+                        else
+                                return false
+                }
+                xobject DoGive
+                {
+                        if object = wand
+                        {
+                                "\"Thank you!  I've been looking for
+                                that.\"  The dwarf takes the wand and bonks
+                                you a little roughly on the head with it,
+                                transporting you back to your nice, warm bed."
+                                rank = 4
+                                score = score + 10
+                                endflag = 1
+                        }
+                        else
+                                return false
+                }
+        }
+}
+
+routine CharShakeHead
+{
+        local char, obj
+        if char in location
+                print CThe(char); " shakes her head at "; The(obj); "."
+}
+
+!----------------------------------------------------------------------------
+! BRICK ROOM
+!----------------------------------------------------------------------------
+
+! Special attribute for the oak door:
+attribute blown_open alias special
+
+object oakdoor "oak door"       ! a little more complicated door object
+{
+        in insidevault
+        noun "door", "doorway"
+        adjective "oak"
+        article "an"
+        short_desc
+                {"Lying on the floor is the oak door."}
+        door_to
+        {
+                if self is not blown_open
+                        "The oak door is locked up tight as a drum."
+                else
+                        return brickroom
+        }
+        vehicle_path minecar
+
+        ! Setting key_object to a non-zero value means the door is not
+        ! openable without a key.  In this case, the ! key is
+        ! technically object 1, which doesn't exist in the game.  So
+        ! for all intents and purposes, the player can never unlock
+        ! this door.  (It has to be blown open.)
+
+        key_object 1
+
+        is static, openable, not open, lockable, locked
+
+        ! Since the door is hidden at the outset, its short_desc is
+        ! not printed (until the door is blown open).
+
+        is hidden
+}
+
+room brickroom "Brick Room"
+{
+        noun "room"
+        adjective "brick"
+        article "the"
+        prep "in"
+        long_desc
+                {"This room is finished entirely in brick masonry.  Good,
+                solid workmanship.  You can head back out to the northwest."}
+        nw_to insidevault
+        out_to insidevault
+}
+
+object trophy "shining golden trophy"
+{
+        in brickroom
+        nouns "award", "trophy", "inscription"
+        adjectives "shining", "golden"
+        article "a"
+        initial_desc
+                {"A shining golden trophy--an award for your efforts--is
+                here.  It bears an inscription."}
+        long_desc
+                {"Congratulations for solving this sample game's one and
+                only major puzzle.  (Although it really wasn't that hard,
+                was it?  And you probably don't deserve such a nice shining
+                golden trophy.)"}
+        after
+        {
+                object DoGet
+                {
+                        if parent(letter) = nothing
+                                {"As you pick up the trophy, a magic wand
+                                falls to the ground, and a small piece of
+                                paper flutters down after it."
+                                move wand to brickroom
+                                move letter to brickroom
+                                rank = 3}
+
+                        else
+                                return false
+                }
+        }
+        is readable
+}
+
+object letter "handwritten letter"
+{
+        nouns "paper", "letter"
+        adjective "handwritten", "piece"
+        article "a"
+        long_desc
+                {"It's a letter from the author of this sample game.  Goes
+                something like this:\n\n\"Give this to the dwarf to solve
+                the game.\"  Nothing fancy, but I'm sure it was late
+                when he was writing this."}
+        is readable
+}
+
+object wand "magic wand"
+{
+        noun "wand"
+        adjective "magic", "twinkling"
+        article "a"
+        short_desc {"A magic wand is twinkling on the floor here."}
+        long_desc
+                {"\"The official magic wand of social democrats
+                everywhere.\""}
+        before
+        {
+                object DoWave
+                {
+                        "You wave the magic wand, a cloud of orange mist
+                        appears, and...\n\n...Aw, forget it.  I'm just
+                        kidding.  What makes you think you know what to
+                        do with a magic wand, anyway?"
+                }
+        }
+}
+
+!----------------------------------------------------------------------------
+! NEW VERB ROUTINES
+!----------------------------------------------------------------------------
+
+routine DoPunt
+{
+        if object is living
+                "Oh, good.  Real good.  Pick a fight, now.  That's really
+                going to get you places."
+        elseif object.type ~= balls
+                "You won't get very far trying to kick that around."
+        else
+        {
+                "You wind up and give ";
+                The(object)
+                " a good boot.  ";
+                if dwarf in ballroom
+                        "The dwarf nods approvingly."
+                else
+                        print newline
+                move object to ballroom
+                player.holding = player.holding - object.size
+        }
+        return true
+}
+
+routine DoWriteOn       ! response to an improperly phrased command
+{
+        if xobject and xobject ~= pencil
+                {"You can't write with ";
+                print The(xobject); "!"}
+        elseif object ~= pad and object ~= unnamedobject
+                {"There's not much point in defacing ";
+                print The(object); "."}
+        else
+                "You'll have to be a little more specific about exactly
+                what you'd like to write.  Try:  'write \"something\".'"
+}
+
+routine DoWrite
+{
+        local len
+
+        if not xobject
+        {
+                if pencil not in player
+                        {"You're not holding anything to write with."
+                        return false}
+                else
+                        xobject = pencil
+        }
+        if not object
+        {
+                if FindObject(pad, location) ~= 1
+                        {"Nothing to write on."
+                        return false}
+                else
+                        object = pad
+        }
+
+        if xobject ~= pencil or (object ~= pad and object ~= unnamedobject)
+                {DoWriteOn
+                return}
+        elseif mittens is worn
+                "Good luck writing with those mittens on."
+        elseif object = unnamedobject
+                return Perform(&DoName, unnamedobject)
+        else
+        {
+                if pad is written
+                        {"You scratch out \"";
+                        print StringPrint(writing); "\" and ";}
+                else:  "You ";
+
+                ! Read the engine parse$ into the writing[] array, to a
+                ! maximum of 64 characters
+
+                len = string(writing, parse$, 64)
+
+                print word[1]; " \""; StringPrint(writing); "\"";
+                " on the pad."
+                pad is written
+        }
+        return true
+}
+
+
+! Notice that the DoName routine only allows the player to create one new
+! entry in order to avoid overrunning MAXDICTEXTEND.
+
+array name_array[50]
+
+routine DoName
+{
+        if object is special
+                {"You already named it ";
+                The(object)
+                "--don't go changing your mind now."}
+        elseif pencil not in player
+                "Would help if you were holding something to write that
+                on the object, so you'll remember it."
+        else
+        {
+                local i, len
+
+                len = string(name_array, parse$, 49)    ! maximum 49 char.
+                for (i=0; i<len; i=i+1)
+                {
+                        ! Because the parser cannot recognize multiple
+                        ! words...
+                        if name_array[i] = ' '          ! a space
+                                {"Better keep it to one word."
+                                return}
+
+                        ! ...or non-alphanumeric characters (a table of
+                        ! ASCII values will show why these are the
+                        ! boundaries)
+
+                        if name_array[i] < '0' or name_array[i] > 'z' or
+                        (  name_array[i] > '9' and name_array[i] < 'A') or
+                        (  name_array[i] > 'Z' and name_array[i] < 'a'):
+                                {"Better to keep the fancy punctuation
+                                out of it."
+                                return}
+                }
+
+                "You write \"";
+                StringPrint(name_array)
+                "\" on the object."
+
+                ! The misc property contains the non-case-corrected version
+                ! of the name.
+
+                object.misc = dict(name_array, 49)
+
+                ! The name is converted to '"<string>" object':
+
+                ! initial quote first...
+                name_array[0] = '\"'
+
+                ! then read parse$ into name_array (after the first quote)...
+                len = string(name_array+1, parse$, 49)
+
+                ! and append the last part to name_array...
+                string(name_array+len+1, "\" object")
+
+                ! ...before turning name_array into a dictionary entry
+                object.name = dict(name_array, 49)
+
+                ! Since the adjective will be referred to by the parser,
+                ! it must be lowercase--name_array must also be reloaded
+                ! with parse$ since it has been modified above.
+
+                len = string(name_array, parse$, 49)
+                for (i=0; i<len; i=i+1) ! the actual case-conversion loop
+                {
+                        if name_array[i] >= 'A' and name_array[i] <= 'Z'
+                                name_array[i] = name_array[i] + ('a'-'A')
+                }
+
+                ! then write the word as a dictionary entry
+                object.adjective #1 = dict(name_array, 49)
+
+                object.article = "the"  ! i.e. 'the "<string>" object'
+                object is special
+                object is moved
+        }
+}
+
+routine DoNameWhat
+{
+        "Try:  name object \"(something)\"."
+}
+
+!----------------------------------------------------------------------------
+! REPLACE LIBRARY ROUTINES:
+!----------------------------------------------------------------------------
+
+global already_warned
+
+replace DarkWarning
+{
+        if not already_warned           ! player is only warned once...
+        {
+                "It's pitch black in here.  Stumbling around in the dark
+                isn't such a hot idea:  you're liable to be eaten by a grue."
+                already_warned = true
+        }
+        else                            ! ...and gets three safe moves before
+        {                               ! becoming a snack for a grue
+                already_warned = already_warned + 1
+                if already_warned > 4
+                        {"You stumble around in the dark...and are eaten
+                        by a grue!  Bad move.  Should've used a light."
+                        endflag = 2}
+                else
+                        "You stumble around in the dark."
+        }
+}
+
+! Below is the new PrintScore routine.  Note that it differs from the
+! library routine in that it uses the new global rank to print the ranking.
+
+replace PrintScore(end_of_game)
+{
+        "You ";
+        if not end_of_game
+                "have ";
+        "scored a total of ";
+        print number score; " out of "; number max_score;
+        print ", giving you the rank of "; ranking[rank]; "."
+}
+

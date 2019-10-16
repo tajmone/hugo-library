@@ -1,0 +1,29 @@
+#############################################
+#  The Hugo Interactive Fiction Library:    #
+#  https://github.com/tajmone/hugo-library  #
+#############################################
+
+root = true
+
+[*]
+indent_style = space
+indent_size = unset
+end_of_line = unset
+charset = utf-8
+trim_trailing_whitespace = true
+insert_final_newline = true
+
+
+## Configurations
+#################
+[.{git*,editorconfig}]
+end_of_line = lf
+
+
+## Hugo Sources
+###############
+[*.{hug,h,g}]
+indent_size = 8
+charset = latin1
+
+# EOF #
