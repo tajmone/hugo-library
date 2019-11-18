@@ -1,3 +1,6 @@
+[![BSD 2-Clause License][license badge]][BSD 2-Clause License]&nbsp;
+![build status][travis badge]
+
 # The Hugo Library
 
 Hugo Library v3.1.03.2, by [Kent Tessman] © 1995-2006, [BSD 2-Clause License].
@@ -107,6 +110,11 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 [original license file on Hugo website]: http://develop.generalcoffee.com/hugo/trac/browser/trunk/License.txt "See the original Hugo License file at the official Hugo Subversion repository"
 [version currently available on the IF Archive]: https://www.ifarchive.org/indexes/if-archive/programming/hugo/library/ "Visit the Hugo Library section of the IF Archive"
 [BSD 2-Clause License]: ./LICENSE "View full text of the BSD 2-Clause License"
+
+<!-- badges -->
+
+[license badge]: https://img.shields.io/badge/license-BSD%202--Clause-00b5da
+[travis badge]: https://travis-ci.com/tajmone/hugo-library.svg?branch=master "Travis CI Status: EditorConfig validation"
 
 <!-- Hugo -->
 

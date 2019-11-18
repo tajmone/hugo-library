@@ -8,7 +8,10 @@
 *.h   text
 *.g   text
 
+*.sh  text eol=lf
+
 .editorconfig  text eol=lf
 .gitattributes text eol=lf
+.travis.yml    text eol=lf
 
 # EOF #

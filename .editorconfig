@@ -13,10 +13,30 @@ charset = utf-8
 trim_trailing_whitespace = true
 insert_final_newline = true
 
+[eclint.log]
+; Exclude EClint log file check to prevent error reports on Travis CI
+indent_style = unset
+indent_size = unset
+end_of_line = unset
+charset = unset
+trim_trailing_whitespace = unset
+insert_final_newline = unset
+
+
+## Shell Scripts
+################
+[*.sh]
+end_of_line = lf
+indent_style = tab
+indent_size = unset
+charset = utf-8
+trim_trailing_whitespace = true
+insert_final_newline = true
+
 
 ## Configurations
 #################
-[.{git*,editorconfig}]
+[.{git*,editorconfig,travis.yml}]
 end_of_line = lf
 
 
