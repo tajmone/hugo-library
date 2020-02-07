@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# "validate.sh"                                              v1.1.0 | 2019/11/18
+# "validate.sh"                                              v1.1.2 | 2020/02/01
 #-------------------------------------------------------------------------------
 # Validate code style consistency in the repository via EditorConfig settings
 # and the EClint validator tool:
@@ -39,12 +39,12 @@ fi
 # if not, print only the list of files that failed -- because EClint reports are
 # usually too long.
 
-tmpLog=./eclint.log
+tmpLog=$(mktemp)
 eclint check 2> $tmpLog || {
 	echo -e "\033[31;1m~~~ ERROR! ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~";
 	echo -e "\033[31;1mThe following files didn't pass the validation test:\n\033[33;1m";
 	cat $tmpLog | grep  "^[^ ]";
-	echo -e "\033[31;1m\n\033[31;1mRun ECLint locally for detailed information about the problems.";
+	echo -e "\n\033[31;1mRun ECLint locally for detailed information about the problems.";
 	echo -e "\033[31;1m~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~";
 	echo -e "\033[31;1m/// Aborting All Tests ///\033[0m";
 	rm $tmpLog;

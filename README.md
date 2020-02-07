@@ -5,6 +5,8 @@
 
 Hugo Library v3.1.03.2, by [Kent Tessman] © 1995-2006, [BSD 2-Clause License].
 
+With the addition of _The Hugo Book_, 1st Ed. revised January 2020, [CC BY-NC-SA 4.0] license.
+
 Repository created by [Tristano Ajmone], 2019/10/18.
 
 -----
@@ -16,6 +18,7 @@ Repository created by [Tristano Ajmone], 2019/10/18.
 - [About](#about)
 - [Comparison with the IF Archive Version](#comparison-with-the-if-archive-version)
 - [License](#license)
+- [Hugo Book License](#hugo-book-license)
 - [Links](#links)
 
 <!-- /MarkdownTOC -->
@@ -27,6 +30,9 @@ Repository created by [Tristano Ajmone], 2019/10/18.
 This repository contains the Hugo Library v3.1.03.2. taken from the official [Hugo SVN repository], plus the `sample.hug` and `shell.hug` files from the [Hugo website].
 
 - [`/hugolib/`](./hugolib/) — Hugo Library v3.1.03.2.
+- [`PRECOMPILING.md`](./PRECOMPILING.md) — A note on precompiling the Hugo Library.
+- [`hugolib.hug`](./hugolib.hug) — Hugo Library precompiled header wrapper.
+- [`hugo-book.html`](./hugo-book.html) — _The Hugo Book_, 1st Ed. revised January 2020 ([CC BY-NC-SA 4.0]).
 - [`sample.hug`](./sample.hug) — demo adventure for the library.
 - [`shell.hug`](./shell.hug) — boilerplate for creating adventures with the library.
 - [`LICENSE`](./LICENSE) — BSD 2-Clause License.
@@ -93,6 +99,15 @@ OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ```
 
+# Hugo Book License
+
+- [`hugo-book.html`](./hugo-book.html)
+
+_The Hugo Book_ is Copyright © 2004 by [Kent Tessman], released under [CC BY-NC-SA 4.0] license.
+
+The HTML edition of the book was taken from the new AsciiDoc port by [Tristano Ajmone]:
+
+- https://github.com/tajmone/hugo-book
 
 # Links
 
@@ -110,6 +125,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 [original license file on Hugo website]: http://develop.generalcoffee.com/hugo/trac/browser/trunk/License.txt "See the original Hugo License file at the official Hugo Subversion repository"
 [version currently available on the IF Archive]: https://www.ifarchive.org/indexes/if-archive/programming/hugo/library/ "Visit the Hugo Library section of the IF Archive"
 [BSD 2-Clause License]: ./LICENSE "View full text of the BSD 2-Clause License"
+[CC BY-NC-SA 4.0]: https://creativecommons.org/licenses/by-nc-sa/4.0/ "Creative Common Attribution-NonCommercial-ShareAlike 4.0 International license"
 
 <!-- badges -->
 

@@ -1,0 +1,32 @@
+!\---------------------------------------------------------------------------
+
+        HUGOLIB.HUG
+        Copyright (c) 1995-1998 by Kent Tessman
+
+        Compile using
+
+                hc -h hugolib.hug
+
+        to create an .HLB version of HUGOLIB.H which can then be linked
+        as a precompiled header using #link instead of #include.
+
+---------------------------------------------------------------------------\!
+
+! Comment out any of the following #settings in order to omit the
+! corresponding files/sections from the precompiled header.
+
+#set DEBUG                              ! include debugging routines
+#set VERBSTUBS                          ! include verb stub routines
+
+#set USE_VEHICLES                       ! from OBJLIB.H
+#set USE_PLURAL_OBJECTS                 !
+#set USE_ATTACHABLES                    !
+
+#ifset DEBUG
+#switches -d
+#endif
+
+#include "hugolib.h"
+
+routine main
+{}

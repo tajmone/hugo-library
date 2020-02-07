@@ -5,13 +5,35 @@
 
 * text=auto
 
-*.h   text
-*.g   text
+## Hugo Source Files
+####################
+[attr]Hugo text linguist-language=Hugo gitlab-language=Hugo
+*.hug   Hugo
+*.h     Hugo
+*.g     Hugo
 
-*.sh  text eol=lf
 
-.editorconfig  text eol=lf
-.gitattributes text eol=lf
-.travis.yml    text eol=lf
+## Repository Configuration
+###########################
+.editorconfig    text eol=lf
+.gitattributes   text eol=lf
+.gitconfig       text eol=lf
+.gitignore       text eol=lf
+.gitlab-ci.yml   text eol=lf
+.gitmodules      text eol=lf
+.travis.yml      text eol=lf
+
+## Documentation Files
+######################
+*.md      text
+*.txt     text
+LICENSE   text
+
+## Shell Scripts
+################
+*.bat   text eol=crlf
+*.com   text eol=crlf
+*.sh    text eol=lf
+*.ps1   text eol=crlf
 
 # EOF #
